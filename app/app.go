@@ -113,9 +113,10 @@ func New() *cli.App {
 				ArgsUsage: "NAME",
 			},
 			{
-				Name:   "path",
-				Usage:  "Print the path of the configuration directory",
-				Action: showConfigPath,
+				Name:    "path",
+				Aliases: []string{"dir"},
+				Usage:   "Print the path of the configuration directory",
+				Action:  showConfigPath,
 				Flags: []cli.Flag{
 					&contextFlag,
 				},
