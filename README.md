@@ -35,11 +35,11 @@ USAGE:
 
 COMMANDS:
    state         Display application state
+   context, ctx  Get or set the active configuration context in application state
    list, ls      Display table of all configurations in application state
    add           Add a new configuration to application state
    remove, rm    Remove a configuration from application state
-   context, ctx  Get or set the active configuration context in application state
-   path          Print the path of the configuration directory
+   path, dir     Print the path of the configuration directory
    open          Open files in emacs with the desired configuration
    version       Print the version of the application
    help, h       Shows a list of commands or help for one command
@@ -49,7 +49,6 @@ GLOBAL OPTIONS:
    --dry-run        Display the command that would be executed, but do not execute it (default: false)
    --verbose, -v    Display verbose output (default: false)
    --help, -h       show help
-
 ```
 
 The `help` subcommand can also be used to display help information for a specific subcommand:
