@@ -16,16 +16,16 @@ func IsCached(dir, name string) bool {
 	return !os.IsNotExist(err)
 }
 
-// AddRepo adds a repository to the cache directory.
-func AddRepo(dir, name, url string) error {
+// AddRepo adds a repository to the cache directory and returns its location in it.
+func AddRepo(dir, name, url string) (string, error) {
 	repoDir := filepath.Join(dir, name)
 	if err := util.EnsureDir(dir); err != nil {
-		return err
+		return repoDir, err
 	}
 	if err := cloneRepo(url, repoDir); err != nil {
-		return err
+		return repoDir, err
 	}
-	return nil
+	return repoDir, nil
 }
 
 // RemoveRepo removes a repository from the cache directory.

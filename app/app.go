@@ -212,7 +212,7 @@ func addConfig(c *cli.Context) error {
 	// If the path is a git URL, add the repository to the cache.
 	if isGitURL(path) {
 		// Add the repository to the cache.
-		if err := cache.AddRepo(cachePath(), name, path); err != nil {
+		if path, err = cache.AddRepo(cachePath(), name, path); err != nil {
 			return err
 		}
 	}
