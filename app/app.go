@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/mitchellh/go-homedir"
 	"github.com/rodaine/table"
 	"github.com/urfave/cli/v2"
 
@@ -35,7 +34,7 @@ but can be overridden with the --app-dir flag. The state file is named state.jso
 and is located in the application directory.`
 
 // defaultAppDir is the default application directory when not provided.
-var defaultAppDir, _ = homedir.Expand(fmt.Sprintf("~/.config/%s", appName))
+var defaultAppDir, _ = util.HomeDirPath(".config", appName)
 
 // appDir is the location of the application state file in unexpanded form.
 var appDir string
@@ -73,17 +72,18 @@ var verboseFlag = cli.BoolFlag{
 // context controls the configuration context to use.
 var context string
 
-// contextFlag is the flag used to provide name of a configuration context to
-// use instead of any active context found in the state.
+// contextFlag is the flag used to provide name of an environment context to
+// use instead of any active environment context found in the state.
 var contextFlag = cli.StringFlag{
 	Name:        "context",
 	Aliases:     []string{"c"},
-	Usage:       "Use a specific configuration context",
+	Usage:       "Use a specific environment context",
 	Destination: &context,
 }
 
-// noContextError indicates no configuration context found in the active context or context flag.
-var noContextError = fmt.Errorf("no configuration specified or active")
+// noContextError indicates no environment context was found for that
+// specified by the active context in state or the context flag.
+var noContextError = fmt.Errorf("no environment context specified or active")
 
 // New creates a new cli application.
 func New() *cli.App {
@@ -773,19 +773,18 @@ func isGitURL(input string) bool {
 	return strings.HasPrefix(input, "git@") || strings.HasPrefix(input, "https://")
 }
 
-// appPath returns the absolute path of the components under the application directory after tilde home directory expansion.
-func appPath(components ...string) string {
-	base, _ := homedir.Expand(appDir)
-	return filepath.Join(append([]string{base}, components...)...)
+// appPath returns the absolute path of the application directory, after tilde home directory expansion.
+func appPath() string {
+	return filepath.Join()
 }
 
 // statePath returns the absolute path of the application state file.
 func statePath() string {
-	return appPath("state.json")
+	return filepath.Join(appDir, "state.json")
 }
 
 // cachePath returns the absolute path of the application cache directory, or repository subdirectory,
 // after tilde home directory expansion.
 func cachePath(name ...string) string {
-	return filepath.Join(appPath("cache"), filepath.Join(name...))
+	return filepath.Join(append([]string{appDir, "cache"}, name...)...)
 }
