@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mojochao/emacscfg/app"
+	"github.com/mojochao/emacsctl/app"
 )
 
 func main() {

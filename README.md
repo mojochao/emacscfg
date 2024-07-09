@@ -1,4 +1,4 @@
-# emacscfg - A simple CLI to manage and use multiple emacs commands and configurations
+# emacsctl - A simple CLI to manage and use multiple emacs commands and configurations
 
 ## Features
 
@@ -16,7 +16,7 @@
 ## Installation
 
 ```text
-go install github.com/mojochao/emacscfg@latest
+go install github.com/mojochao/emacsctl@latest
 ```
 
 ## Usage
@@ -25,12 +25,12 @@ Display help information on all commands and options with the `help` subcommand
 or the `-h` or `--help` global options:
 
 ```text
-$ emacscfg help
+$ emacsctl help
 NAME:
-   emacscfg - Manage multiple emacs environments
+   emacsctl - Manage multiple emacs environments
 
 USAGE:
-   emacscfg [global options] command [command options] 
+   emacsctl [global options] command [command options] 
 
 COMMANDS:
    state             Display application state
@@ -43,7 +43,7 @@ COMMANDS:
    help, h           Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --app-dir value  Specify application directory (default: "~/.config/emacscfg") [$EMACSCFG_DIR]
+   --app-dir value  Specify application directory (default: "~/.config/emacsctl") [$EMACSCFG_DIR]
    --dry-run        Display the command that would be executed, but do not execute it (default: false)
    --verbose, -v    Display verbose output (default: false)
    --help, -h       show help
@@ -52,13 +52,13 @@ GLOBAL OPTIONS:
 This can also be used to display help information for a specific subcommand:
 
 ```text
-$ emacscfg environment add help
+$ emacsctl environment add help
 ```
 
 List all environments with the `environment list` subcommand:
 
 ```text
-$ emacscfg env list
+$ emacsctl env list
 ```
 
 There will be none initially, so let's add one.
@@ -66,7 +66,7 @@ There will be none initially, so let's add one.
 Add a managed configuration with the `add` subcommand:
 
 ```text
-$ emacscfg add my-config /path/to/my/emacs-config
+$ emacsctl add my-config /path/to/my/emacs-config
 ```
 
 If you pass a URL as the configuration path, the `add` subcommand will clone
@@ -74,49 +74,49 @@ the repository to the application repositories cache directory and set the
 configuration path to the location of the cloned repository.
 
 ```text
-$ emacscfg add my-de https://github.com/mojochao/myde.el
+$ emacsctl add my-de https://github.com/mojochao/myde.el
 ```
 
 Remove a managed configuration with the `remove` subcommand:
 
 ```text
-$ emacscfg remove my-config
+$ emacsctl remove my-config
 ```
 
 Get the active managed configuration context with the `context` subcommand:
 
 ```text
-$ emacscfg context
+$ emacsctl context
 ```
 
 Set the active managed configuration context with a configuration name argument:
 
 ```text
-$ emacscfg context my-config
+$ emacsctl context my-config
 ```
 
 Get the path of the active managed configuration context with the `path` subcommand:
 
 ```text
-$ emacscfg path
+$ emacsctl path
 ```
 
 Get the path of any managed configuration by adding the `--context` flag:
 
 ```text
-$ emacscfg path --context my-config
+$ emacsctl path --context my-config
 ```
 
 Open emacs with the active managed configuration with the `open` subcommand:
 
 ```text
-$ emacscfg open my-file-1 my-file-2
+$ emacsctl open my-file-1 my-file-2
 ```
 
 Edit files in emacs with any managed configuration by adding the `--context` flag:
 
 ```text
-$ emacscfg open --context my-config my-file-1 my-file-2
+$ emacsctl open --context my-config my-file-1 my-file-2
 ```
 
 That's all folks!

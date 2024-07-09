@@ -4,7 +4,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mojochao/emacscfg/util"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,12 +15,13 @@ import (
 	"github.com/rodaine/table"
 	"github.com/urfave/cli/v2"
 
-	"github.com/mojochao/emacscfg/cache"
-	"github.com/mojochao/emacscfg/state"
+	"github.com/mojochao/emacsctl/cache"
+	"github.com/mojochao/emacsctl/state"
+	"github.com/mojochao/emacsctl/util"
 )
 
 // appName is the name of the application.
-const appName = "emacscfg"
+const appName = "emacsctl"
 
 // appDescription is the description of the application.
 const appDescription = `This app enables users to manage multiple emacs environments.
@@ -30,7 +30,7 @@ directories. These can be combined into environments that can be used to open
 files with the desired emacs command and configuration.
 
 This app stores its state in a JSON file in the application directory. The
-application directory is located in the user's ~/.config/emacscfg' by default,
+application directory is located in the user's ~/.config/emacsctl' by default,
 but can be overridden with the --app-dir flag. The state file is named state.json
 and is located in the application directory.`
 
@@ -746,13 +746,13 @@ func openEmacs(c *cli.Context) error {
 }
 
 // showAppVersion prints the version of the application set at build time by
-// the `go build -ldflags "-X github.com/mojochao/emacscfg/app.version=0.10.0" -o emacscfg .` command.
+// the `go build -ldflags "-X github.com/mojochao/emacsctl/app.version=0.10.0" -o emacsctl .` command.
 var version string
 
 // showAppVersion prints the version of the application.
 func showAppVersion(_ *cli.Context) error {
 	// Print the version of the application.
-	fmt.Printf("emacscfg version %s\n", version)
+	fmt.Printf("emacsctl version %s\n", version)
 	if !verbose {
 		return nil
 	}

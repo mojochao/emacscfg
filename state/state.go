@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mojochao/emacscfg/util"
+	"github.com/mojochao/emacsctl/util"
 )
 
 // CommandLine represents an emacs command line.

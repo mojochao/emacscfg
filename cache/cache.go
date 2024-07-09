@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/mojochao/emacscfg/util"
+	"github.com/mojochao/emacsctl/util"
 )
 
 // IsCached checks if a repository is cached in the cache directory.

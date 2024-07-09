@@ -1,4 +1,4 @@
-module github.com/mojochao/emacscfg
+module github.com/mojochao/emacsctl
 
 go 1.22
 

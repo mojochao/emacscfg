@@ -22,4 +22,4 @@
 go.work
 
 # Build output
-emacscfg
+emacsctl
