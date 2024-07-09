@@ -6,47 +6,79 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mojochao/emacscfg/util"
 )
 
+// CommandLine represents an emacs command line.
+type CommandLine = string
+
+// ConfigDir represents a path to an emacs configuration directory.
+type ConfigDir = string
+
+// Environment represents an emacs command and config directory environment.
+type Environment struct {
+	CommandName string `json:"command_name"` // name of the command to use
+	ConfigName  string `json:"config_name"`  // name of the config to use
+	Description string `json:"description"`  // description of the config
+}
+
 // State represents the state of the application.
 type State struct {
-	Configs map[string]string `json:"configs"` // map of config name to internal directory of repositories cloned by the application
-	Context string            `json:"context"` // name of current, active configuration context
+	CommandLines map[string]CommandLine `json:"command_lines"`
+	ConfigDirs   map[string]ConfigDir   `json:"config_dirs"`
+	Environments map[string]Environment `json:"environments"`
+	Context      string                 `json:"context"`
 }
 
 // New returns a new, empty application state.
 func New() *State {
 	return &State{
-		Configs: make(map[string]string),
+		CommandLines: map[string]CommandLine{
+			"default": util.DefaultEmacsCommandLine,
+		},
+		ConfigDirs: map[string]ConfigDir{
+			"default": util.DefaultEmacsConfigDir,
+		},
+		Environments: map[string]Environment{
+			"default": {
+				CommandName: "default",
+				ConfigName:  "default",
+				Description: "default emacs environment",
+			},
+		},
+		Context: "default",
 	}
 }
 
-// AddConfig adds a configuration to the state.
-func (s *State) AddConfig(name, path string) error {
-	// Ensure the configuration does not already exist.
-	if _, exists := s.Configs[name]; exists {
-		return fmt.Errorf("configuration %s exists", name)
+// CommandExists checks if a command line exists in the state.
+func (s *State) CommandExists(name string) bool {
+	_, exists := s.CommandLines[name]
+	return exists
+}
+
+// AddCommandLine adds a command line to the state.
+func (s *State) AddCommandLine(name string, commandLine []string) error {
+	// Ensure the named command line does not already exist.
+	if _, exists := s.CommandLines[name]; exists {
+		return fmt.Errorf("command %s exists", name)
 	}
 
-	// Add the configuration to the state.
-	s.Configs[name] = path
-
-	// Set the context to the new configuration.
-	s.Context = name
+	// Add the command line to the state.
+	s.CommandLines[name] = strings.Join(commandLine, " ")
 	return nil
 }
 
-// RemoveConfig removes a configuration from the state.
-func (s *State) RemoveConfig(name string) error {
-	// Ensure the configuration exists.
-	if _, exists := s.Configs[name]; !exists {
-		return fmt.Errorf("configuration %s not found", name)
+// RemoveCommandLine removes a command line from the state.
+func (s *State) RemoveCommandLine(name string) error {
+	// Ensure the command line exists.
+	if _, exists := s.ConfigDirs[name]; !exists {
+		return fmt.Errorf("command %s not found", name)
 	}
 
 	// Remove the configuration from the state.
-	delete(s.Configs, name)
+	delete(s.ConfigDirs, name)
 
 	// Reset the context to nothing.
 	s.Context = ""
@@ -54,13 +86,92 @@ func (s *State) RemoveConfig(name string) error {
 	return nil
 }
 
-// GetConfigPath returns the path to a managed configuration in the state.
-func (s *State) GetConfigPath(name string) (string, error) {
-	path, exists := s.Configs[name]
-	if !exists {
-		return "", fmt.Errorf("configuration %s not found", name)
+// ConfigDirExists checks if a configuration directory exists in the state.
+func (s *State) ConfigDirExists(name string) bool {
+	_, exists := s.ConfigDirs[name]
+	return exists
+}
+
+// AddConfigDir adds a configuration directory to the state.
+func (s *State) AddConfigDir(name, path string) error {
+	// Ensure the configuration does not already exist.
+	if _, exists := s.ConfigDirs[name]; exists {
+		return fmt.Errorf("configuration %s exists", name)
 	}
-	return path, nil
+
+	// Add the configuration to the state.
+	s.ConfigDirs[name] = path
+
+	//// Set the context to the new configuration.
+	//s.Context = name
+	return nil
+}
+
+// RemoveConfigDir removes a configuration directory rom the state.
+func (s *State) RemoveConfigDir(name string) error {
+	// Ensure the configuration exists.
+	if _, exists := s.ConfigDirs[name]; !exists {
+		return fmt.Errorf("configuration %s not found", name)
+	}
+
+	// Remove the configuration from the state.
+	delete(s.ConfigDirs, name)
+
+	// Reset the context to nothing.
+	s.Context = ""
+
+	return nil
+}
+
+// EnvironmentExists checks if an emacs environment exists in the state.
+func (s *State) EnvironmentExists(name string) bool {
+	_, exists := s.Environments[name]
+	return exists
+}
+
+// AddEnvironment adds an emacs environment to the state.
+func (s *State) AddEnvironment(name, command, config, description string) error {
+	// Ensure the environment does not already exist.
+	if _, exists := s.Environments[name]; exists {
+		return fmt.Errorf("environment %s exists", name)
+	}
+
+	// Ensure the command exists.
+	if _, exists := s.CommandLines[name]; !exists {
+		return fmt.Errorf("command %s not found", name)
+	}
+
+	// Ensure the configuration exists.
+	if _, exists := s.ConfigDirs[name]; !exists {
+		return fmt.Errorf("configuration %s not found", name)
+	}
+
+	// Add the configuration to the state.
+	s.Environments[name] = Environment{
+		CommandName: command,
+		ConfigName:  config,
+		Description: description,
+	}
+
+	// Set the context to the new configuration.
+	s.Context = name
+	return nil
+}
+
+// RemoveEnvironment removes an emacs environment from the state.
+func (s *State) RemoveEnvironment(name string) error {
+	// Ensure the environment exists.
+	if _, exists := s.Environments[name]; !exists {
+		return fmt.Errorf("environment %s not found", name)
+	}
+
+	// Remove the environment from the state.
+	delete(s.Environments, name)
+
+	// Reset the context to nothing.
+	s.Context = ""
+
+	return nil
 }
 
 // Load loads the state from the state file.

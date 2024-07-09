@@ -1,14 +1,12 @@
-# emacscfg - A simple CLI to manage and use multiple emacs configurations
+# emacscfg - A simple CLI to manage and use multiple emacs commands and configurations
 
 ## Features
 
-- listing all managed configurations
-- adding a managed configuration by name
-- removing a managed configuration by name
-- setting the active managed configuration by name
-- switching between managed configurations by name
-- getting the path of a managed configuration
-- starting emacs with the default or named configuration
+- managing available emacs commands (emacs binary and command line options)
+- managing available emacs configurations (emacs config directories)
+- managing available emacs environments (a combination of a command and a configuration)
+- managing the active environment context
+- opening files in the desired emacs environment
 
 ## Requirements
 
@@ -23,26 +21,26 @@ go install github.com/mojochao/emacscfg@latest
 
 ## Usage
 
-Display help information on all commands and options with the `help` subcommand:
+Display help information on all commands and options with the `help` subcommand
+or the `-h` or `--help` global options:
 
 ```text
 $ emacscfg help
 NAME:
-   emacscfg - Manage multiple emacs configuration profiles
+   emacscfg - Manage multiple emacs environments
 
 USAGE:
    emacscfg [global options] command [command options] 
 
 COMMANDS:
-   state         Display application state
-   context, ctx  Get or set the active configuration context in application state
-   list, ls      Display table of all configurations in application state
-   add           Add a new configuration to application state
-   remove, rm    Remove a configuration from application state
-   path, dir     Print the path of the configuration directory
-   open          Open files in emacs with the desired configuration
-   version       Print the version of the application
-   help, h       Shows a list of commands or help for one command
+   state             Display application state
+   environment, env  Manage emacs environments
+   command, cmd      Manage emacs command lines
+   config, cfg       Manage emacs configuration directories in application state
+   context, ctx      Manage active environment context in application state
+   open, edit        Open files in the desired emacs environment
+   version           Print the version of the application
+   help, h           Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --app-dir value  Specify application directory (default: "~/.config/emacscfg") [$EMACSCFG_DIR]
@@ -51,17 +49,19 @@ GLOBAL OPTIONS:
    --help, -h       show help
 ```
 
-The `help` subcommand can also be used to display help information for a specific subcommand:
+This can also be used to display help information for a specific subcommand:
 
 ```text
-$ emacscfg add help
+$ emacscfg environment add help
 ```
 
-List all managed configurations with the `list` subcommand:
+List all environments with the `environment list` subcommand:
 
 ```text
-$ emacscfg list
+$ emacscfg env list
 ```
+
+There will be none initially, so let's add one.
 
 Add a managed configuration with the `add` subcommand:
 

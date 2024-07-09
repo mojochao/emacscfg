@@ -1,4 +1,4 @@
-// Package util provides utility functions for the application.
+// Package util provides shared utility functions and data for the application.
 package util
 
 import (
@@ -6,6 +6,13 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 )
+
+// DefaultEmacsCommandLine is the default emacs command line when not provided.
+const DefaultEmacsCommandLine = "emacs"
+
+// DefaultEmacsConfigDir defines the default emacs configuration directory
+// when not provided.
+var DefaultEmacsConfigDir, _ = homedir.Expand("~/.emacs.d")
 
 // EnsureDir ensures directory exists.
 func EnsureDir(path string) error {
