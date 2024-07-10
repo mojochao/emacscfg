@@ -25,7 +25,7 @@ Display help information on all commands and options with the `help` subcommand
 or the `-h` or `--help` global options:
 
 ```text
-$ emacsctl help
+$ emacsctl -h
 NAME:
    emacsctl - Manage multiple emacs environments
 
@@ -52,7 +52,7 @@ GLOBAL OPTIONS:
 This can also be used to display help information for a specific subcommand:
 
 ```text
-$ emacsctl environment add help
+$ emacsctl environment add -h
 ```
 
 List all environments with the `environment list` subcommand:

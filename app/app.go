@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime/debug"
 	"strings"
 
 	"github.com/fatih/color"
@@ -15,62 +13,35 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/mojochao/emacsctl/cache"
+	"github.com/mojochao/emacsctl/config"
+	"github.com/mojochao/emacsctl/errors"
 	"github.com/mojochao/emacsctl/state"
 	"github.com/mojochao/emacsctl/util"
 )
-
-// appName is the name of the application.
-const appName = "emacsctl"
-
-// appDescription is the description of the application.
-const appDescription = `This app enables users to manage multiple emacs environments.
-It enables you to define different emacs command lines and configuration
-directories. These can be combined into environments that can be used to open
-files with the desired emacs command and configuration.
-
-This app stores its state in a JSON file in the application directory. The
-application directory is located in the user's ~/.config/emacsctl' by default,
-but can be overridden with the --app-dir flag. The state file is named state.json
-and is located in the application directory.`
-
-// defaultAppDir is the default application directory when not provided.
-var defaultAppDir, _ = util.HomeDirPath(".config", appName)
-
-// appDir is the location of the application state file in unexpanded form.
-var appDir string
 
 // appDirFlag is the flag used to specify an alternate application directory
 var appDirFlag = cli.StringFlag{
 	Name:        "app-dir",
 	Usage:       "Specify application directory",
-	Destination: &appDir,
-	Value:       defaultAppDir,
+	Destination: &config.AppDir,
+	Value:       config.DefaultAppDir,
 	EnvVars:     []string{"EMACSCFG_DIR"},
 }
-
-// dryRun controls whether the application should execute commands or print them.
-var dryRun bool
 
 // dryRunFlag is the flag used to specify commands to be printed but not executed.
 var dryRunFlag = cli.BoolFlag{
 	Name:        "dry-run",
 	Usage:       "Display the command that would be executed, but do not execute it",
-	Destination: &dryRun,
+	Destination: &config.DryRun,
 }
-
-// verbose controls whether the application should print verbose output.
-var verbose bool
 
 // verboseFlag is the flag used to specify increased output.
 var verboseFlag = cli.BoolFlag{
 	Name:        "verbose",
 	Aliases:     []string{"v"},
 	Usage:       "Display verbose output",
-	Destination: &verbose,
+	Destination: &config.Verbose,
 }
-
-// context controls the configuration context to use.
-var context string
 
 // contextFlag is the flag used to provide name of an environment context to
 // use instead of any active environment context found in the state.
@@ -78,19 +49,15 @@ var contextFlag = cli.StringFlag{
 	Name:        "context",
 	Aliases:     []string{"c"},
 	Usage:       "Use a specific environment context",
-	Destination: &context,
+	Destination: &config.Context,
 }
-
-// noContextError indicates no environment context was found for that
-// specified by the active context in state or the context flag.
-var noContextError = fmt.Errorf("no environment context specified or active")
 
 // New creates a new cli application.
 func New() *cli.App {
 	return &cli.App{
-		Name:        appName,
+		Name:        config.AppName,
 		Usage:       "Manage multiple emacs environments",
-		Description: appDescription,
+		Description: config.AppDescription,
 		Flags: []cli.Flag{
 			&appDirFlag,
 			&dryRunFlag,
@@ -136,7 +103,7 @@ func New() *cli.App {
 							&cli.StringFlag{
 								Name:    "command",
 								Aliases: []string{"cmd"},
-								Usage:   "Name of existing emacs command line to use for environment",
+								Usage:   "Name of existing emacs command to use for environment",
 							},
 							&cli.StringFlag{
 								Name:    "commandline",
@@ -146,12 +113,12 @@ func New() *cli.App {
 							&cli.StringFlag{
 								Name:    "config",
 								Aliases: []string{"cfg"},
-								Usage:   "Name of existing emacs configuration directory to use for environment",
+								Usage:   "Name of existing emacs configuration to use for environment",
 							},
 							&cli.StringFlag{
 								Name:    "configdir",
 								Aliases: []string{"cfgdir"},
-								Usage:   "New emacs configuration directory to use for environment",
+								Usage:   "New emacs configuration directory path to use for environment",
 							},
 							&cli.StringFlag{
 								Name:    "description",
@@ -178,7 +145,7 @@ func New() *cli.App {
 					{
 						Name:    "list",
 						Aliases: []string{"ls"},
-						Usage:   "Display table of all emacs command lines in application state",
+						Usage:   "Display table of all emacs commands in application state",
 						Action:  listCommands,
 					},
 					{
@@ -198,7 +165,7 @@ func New() *cli.App {
 					{
 						Name:      "remove",
 						Aliases:   []string{"rm"},
-						Usage:     "Remove an existing emacs command line from application state",
+						Usage:     "Remove an existing emacs command from application state",
 						Action:    removeCommand,
 						Args:      true,
 						ArgsUsage: "NAME",
@@ -213,7 +180,7 @@ func New() *cli.App {
 					{
 						Name:    "list",
 						Aliases: []string{"ls"},
-						Usage:   "Display table of all emacs configuration directories in application state",
+						Usage:   "Display table of all emacs configurations in application state",
 						Action:  listConfigs,
 					},
 					{
@@ -233,7 +200,7 @@ func New() *cli.App {
 					{
 						Name:      "remove",
 						Aliases:   []string{"rm"},
-						Usage:     "Remove an existing emacs configuration directory from application state",
+						Usage:     "Remove an existing emacs configuration from application state",
 						Action:    removeConfig,
 						Args:      true,
 						ArgsUsage: "NAME",
@@ -277,7 +244,7 @@ func New() *cli.App {
 			},
 			{
 				Name:   "version",
-				Usage:  "Print the version of the application",
+				Usage:  "Print application version",
 				Action: showAppVersion,
 			},
 		},
@@ -287,7 +254,7 @@ func New() *cli.App {
 // listEnvironments prints a table of all environments in the state file.
 func listEnvironments(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
@@ -300,10 +267,10 @@ func listEnvironments(_ *cli.Context) error {
 	// Otherwise, print a pretty table of all environments.
 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
-	tbl := table.New("Name", "Path")
+	tbl := table.New("Name", "Command", "Config", "Description")
 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
-	for name, path := range appState.Environments {
-		tbl.AddRow(name, path)
+	for name, environment := range appState.Environments {
+		tbl.AddRow(name, environment.CommandName, environment.ConfigName, environment.Description)
 	}
 
 	tbl.Print()
@@ -315,46 +282,50 @@ func listEnvironments(_ *cli.Context) error {
 func addEnvironment(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{
+			Expected: 1,
+			Received: c.NArg(),
+		}
 	}
 	name := c.Args().Get(0)
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Get the optional command line, configuration directory, and description from the flags.
 	commandName := c.String("command")
-	commandLine, ok := appState.CommandLines[commandName]
-	if !ok {
-		commandLine = util.DefaultEmacsCommandLine
+	if _, ok := appState.Commands[commandName]; !ok {
+		return errors.CommandNotFoundError{Name: commandName}
 	}
 
 	configName := c.String("config")
-	configPath, ok := appState.ConfigDirs[configName]
-	if !ok {
-		configPath = util.DefaultEmacsConfigDir
+	if _, ok := appState.Configs[configName]; !ok {
+		return errors.ConfigNotFoundError{Name: configName}
 	}
 
 	description := c.String("description")
+	if description == "" {
+		description = "Not specified"
+	}
 
 	// Add the environment to the application state and save it back to the state file.
-	if err := appState.AddEnvironment(name, commandLine, configPath, description); err != nil {
+	if err := appState.AddEnvironment(name, commandName, configName, description); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("added environment: %s\n", name)
 	}
 	return nil
@@ -364,24 +335,23 @@ func addEnvironment(c *cli.Context) error {
 func removeEnvironment(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{Expected: 1, Received: c.NArg()}
 	}
 	name := c.Args().Get(0)
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// Find the environment in the application state.
-	_, exists := appState.Environments[name]
-	if !exists {
-		return fmt.Errorf("environment %s not found", name)
+	if _, exists := appState.Environments[name]; !exists {
+		return errors.EnvironmentNotFoundError{Name: name}
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
@@ -389,12 +359,12 @@ func removeEnvironment(c *cli.Context) error {
 	if err := appState.RemoveEnvironment(name); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("removed environment: %s\n", name)
 	}
 	return nil
@@ -403,23 +373,23 @@ func removeEnvironment(c *cli.Context) error {
 // listCommands prints a table of all commands in the state file.
 func listCommands(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If no commands are found, there's nothing else to do.
-	if appState == nil || len(appState.CommandLines) == 0 {
+	if appState == nil || len(appState.Commands) == 0 {
 		return nil
 	}
 
 	// Otherwise, print a pretty table of all commands.
 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
-	tbl := table.New("Name", "Command")
+	tbl := table.New("Name", "Path", "Args", "Description")
 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
-	for name, command := range appState.CommandLines {
-		tbl.AddRow(name, command)
+	for name, command := range appState.Commands {
+		tbl.AddRow(name, command.BinPath, strings.Join(command.BinArgs, " "), command.Description)
 	}
 
 	tbl.Print()
@@ -430,32 +400,33 @@ func listCommands(_ *cli.Context) error {
 func addCommand(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() < 2 {
-		return fmt.Errorf("expected minimum of 2 arguments, got %d", c.NArg())
+		return errors.MinimumNumArgsError{Minimum: 2, Received: c.NArg()}
 	}
 	name := c.Args().Get(0)
 	command := c.Args().Tail()
+	description := c.String("description")
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Add the command to the application state and save it back to the state file.
-	if err := appState.AddCommandLine(name, command); err != nil {
+	if err := appState.AddCommand(name, command, description); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("added command: %s\n", name)
 	}
 	return nil
@@ -465,37 +436,36 @@ func addCommand(c *cli.Context) error {
 func removeCommand(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{Expected: 1, Received: c.NArg()}
 	}
 	name := c.Args().Get(0)
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// Find the command in the application state.
-	_, exists := appState.CommandLines[name]
-	if !exists {
-		return fmt.Errorf("command %s not found", name)
+	if _, exists := appState.Commands[name]; !exists {
+		return errors.CommandNotFoundError{Name: name}
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Remove the command from the application state and save it back to the state file.
-	if err := appState.RemoveCommandLine(name); err != nil {
+	if err := appState.RemoveCommand(name); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("removed command: %s\n", name)
 	}
 	return nil
@@ -504,23 +474,23 @@ func removeCommand(c *cli.Context) error {
 // listConfigs prints a table of all configuration directories in the state file.
 func listConfigs(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If no configuration directories are found, there's nothing else to do.
-	if appState == nil || len(appState.ConfigDirs) == 0 {
+	if appState == nil || len(appState.Configs) == 0 {
 		return nil
 	}
 
 	// Otherwise, print a pretty table of all configuration directories.
 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
-	tbl := table.New("Name", "Path")
+	tbl := table.New("Name", "Path", "Description")
 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
-	for name, path := range appState.ConfigDirs {
-		tbl.AddRow(name, path)
+	for name, cfg := range appState.Configs {
+		tbl.AddRow(name, cfg.InitDir, cfg.Description)
 	}
 
 	tbl.Print()
@@ -531,40 +501,46 @@ func listConfigs(_ *cli.Context) error {
 func addConfig(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 2 {
-		return fmt.Errorf("expected 2 arguments, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{Expected: 2, Received: c.NArg()}
 	}
 	name := c.Args().Get(0)
 	path := c.Args().Get(1)
+	description := c.String("description")
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// If the path is a git URL, add the repository to the cache.
-	if isGitURL(path) {
+	if util.IsGitURL(path) {
 		// Add the repository to the cache.
-		if path, err = cache.AddRepo(cachePath(), name, path); err != nil {
+		url := path
+		cacheDir := config.CachePath()
+		if err := util.EnsureDir(cacheDir); err != nil {
+			return err
+		}
+		if path, err = cache.AddRepo(cacheDir, name, url); err != nil {
 			return err
 		}
 	}
 
 	// Otherwise, add the configuration to the application state and save it back to the state file.
-	if err := appState.AddConfigDir(name, path); err != nil {
+	if err := appState.AddConfig(name, path, description); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("added configuration: %s\n", name)
 	}
 	return nil
@@ -575,44 +551,44 @@ func addConfig(c *cli.Context) error {
 func removeConfig(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{Expected: 1, Received: c.NArg()}
 	}
 	name := c.Args().Get(0)
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
-	// Find the configuration directory in the application state.
-	_, exists := appState.ConfigDirs[name]
-	if !exists {
-		return fmt.Errorf("configuration %s not found", name)
+	// Find the config in the application state.
+	if _, exists := appState.Configs[name]; !exists {
+		return errors.ConfigNotFoundError{Name: name}
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Otherwise, remove any cached repository from the filesystem.
-	if cache.IsCached(cachePath(), name) {
-		if err := cache.RemoveRepo(cachePath(), name); err != nil {
+	cacheDir := config.CachePath()
+	if cache.IsCached(cacheDir, name) {
+		if err := cache.RemoveRepo(cacheDir, name); err != nil {
 			return err
 		}
 	}
 
-	// Remove configuration directory from the application state and save it back to the state file.
-	if err := appState.RemoveConfigDir(name); err != nil {
+	// Remove config from the application state and save it back to the state file.
+	if err := appState.RemoveConfig(name); err != nil {
 		return err
 	}
-	if err := state.Save(appState, statePath()); err != nil {
+	if err := state.Save(appState, config.StatePath()); err != nil {
 		return err
 	}
 
 	// Success!
-	if verbose {
+	if config.Verbose {
 		fmt.Printf("removed configuration: %s\n", name)
 	}
 	return nil
@@ -621,7 +597,7 @@ func removeConfig(c *cli.Context) error {
 // showState prints the application state.
 func showState(_ *cli.Context) error {
 	// Load the application state and print it to stdout.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
@@ -637,14 +613,14 @@ func showState(_ *cli.Context) error {
 
 // showStatePath prints the path of the application state file.
 func showStatePath(_ *cli.Context) error {
-	fmt.Println(statePath())
+	fmt.Println(config.StatePath())
 	return nil
 }
 
 // getContext prints the active configuration context in the state file.
 func getContext(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
@@ -658,91 +634,89 @@ func getContext(_ *cli.Context) error {
 func setContext(c *cli.Context) error {
 	// Verify correct usage.
 	if c.NArg() != 1 {
-		return fmt.Errorf("expected 1 argument, got %d", c.NArg())
+		return errors.UnexpectedNumArgsError{Expected: 1, Received: c.NArg()}
 	}
 
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Otherwise, set the active context and save it back to the state file.
 	appState.Context = c.Args().Get(0)
-	return state.Save(appState, statePath())
+	return state.Save(appState, config.StatePath())
 }
 
 // clearContext clears the active configuration context in the state file.
 func clearContext(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// If is a dry run, there's nothing else to do.
-	if dryRun {
+	if config.DryRun {
 		return nil
 	}
 
 	// Otherwise, clear the active context and save it back to the state file.
 	appState.Context = ""
-	return state.Save(appState, statePath())
+	return state.Save(appState, config.StatePath())
 }
 
 // openEmacs opens emacs with the desired configuration and all provided arguments.
-func openEmacs(c *cli.Context) error {
+func openEmacs(_ *cli.Context) error {
 	// Load the application state.
-	appState, err := state.Load(statePath())
+	appState, err := state.Load(config.StatePath())
 	if err != nil {
 		return err
 	}
 
 	// Ensure an active context is set.
+	context := config.Context
 	if context == "" {
 		context = appState.Context
 	}
 	if context == "" {
-		return noContextError
+		return errors.NoContextError
 	}
 
 	// Get the environment.
 	env, ok := appState.Environments[context]
 	if !ok {
-		return fmt.Errorf("environment %s not found", context)
+		return errors.EnvironmentNotFoundError{Name: context}
 	}
 
-	// Get the command line to execute.
-	commandLine, ok := appState.CommandLines[env.CommandName]
+	// Get the command to use.
+	cmd, ok := appState.Commands[env.CommandName]
 	if !ok {
-		return fmt.Errorf("command %s not found", env.CommandName)
+		return errors.CommandNotFoundError{Name: env.CommandName}
 	}
 
-	// Get the config path to use.
-	configDir, ok := appState.ConfigDirs[env.ConfigName]
+	// Get the config to use.
+	cfg, ok := appState.Configs[env.ConfigName]
 	if !ok {
-		return fmt.Errorf("configuration %s not found", env.ConfigName)
+		return errors.ConfigNotFoundError{Name: env.ConfigName}
 	}
 
 	// Build the command line to execute.
-	cmdline := strings.Split(commandLine, " ")
-	cmdline = append(cmdline, "--init-directory", configDir)
-	cmdline = append(cmdline, c.Args().Slice()...)
+	cmdLine := cmd.CommandLine(cfg.InitDir)
 
-	// If is a dry run, print the command and return.
-	if dryRun {
-		fmt.Println(strings.Join(cmdline, " "))
+	// If is a dry run, print the command line and return.
+	if config.DryRun {
+		fmt.Println(strings.Join(cmdLine, " "))
 		return nil
 	}
 
 	// Otherwise, execute the command.
-	cmd := exec.Command(cmdline[0], cmdline[1:]...)
-	return cmd.Run()
+	return exec.Command(cmdLine[0], cmdLine[1:]...).Run()
 }
 
 // showAppVersion prints the version of the application set at build time by
@@ -751,40 +725,18 @@ var version string
 
 // showAppVersion prints the version of the application.
 func showAppVersion(_ *cli.Context) error {
-	// Print the version of the application.
 	fmt.Printf("emacsctl version %s\n", version)
-	if !verbose {
+	if !config.Verbose {
 		return nil
 	}
 
-	// If verbose, print the VCS settings used to build the application.
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if strings.HasPrefix(setting.Key, "vcs.") {
-				fmt.Printf("%s: %s\n", setting.Key, setting.Value)
-			}
-		}
+	buildInfo := util.GetBuildInfo()
+	if buildInfo == nil {
+		return nil
+	}
+
+	for key, value := range buildInfo {
+		fmt.Printf("%s: %s\n", key, value)
 	}
 	return nil
-}
-
-// isGitURL checks if the input is a valid git URL.
-func isGitURL(input string) bool {
-	return strings.HasPrefix(input, "git@") || strings.HasPrefix(input, "https://")
-}
-
-// appPath returns the absolute path of the application directory, after tilde home directory expansion.
-func appPath() string {
-	return filepath.Join()
-}
-
-// statePath returns the absolute path of the application state file.
-func statePath() string {
-	return filepath.Join(appDir, "state.json")
-}
-
-// cachePath returns the absolute path of the application cache directory, or repository subdirectory,
-// after tilde home directory expansion.
-func cachePath(name ...string) string {
-	return filepath.Join(append([]string{appDir, "cache"}, name...)...)
 }

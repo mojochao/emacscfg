@@ -1,49 +1,36 @@
-// Package util provides shared utility functions and data for the application.
+// Package util provides shared utility functions for the application.
 package util
 
 import (
 	"os"
-	"path"
+	"runtime/debug"
+	"strings"
 )
-
-// DefaultEmacsCommandLine is the default emacs command line when not provided.
-const DefaultEmacsCommandLine = "emacs"
-
-// DefaultEmacsConfigDir defines the default emacs configuration directory
-// when not provided.
-var DefaultEmacsConfigDir, _ = HomeDirPath(".emacs.d")
 
 // EnsureDir ensures directory exists.
 func EnsureDir(path string) error {
-	homeDirPath, err := HomeDirPath(path)
-	if err != nil {
-		return err
-	}
-
-	_, err = os.Stat(homeDirPath)
+	_, err := os.Stat(path)
 	if !os.IsNotExist(err) {
 		return nil
 	}
-
-	return os.MkdirAll(homeDirPath, 0755)
+	return os.MkdirAll(path, 0755)
 }
 
-func HomeDirPath(parts ...string) (string, error) {
-	// Get the home directory.
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+// GetBuildInfo returns the build information for the application.
+func GetBuildInfo() map[string]string {
+	var results map[string]string
+	if info, ok := debug.ReadBuildInfo(); ok {
+		results = make(map[string]string)
+		for _, setting := range info.Settings {
+			if strings.HasPrefix(setting.Key, "vcs.") {
+				results[setting.Key] = setting.Value
+			}
+		}
 	}
+	return results
+}
 
-	// If no parts are provided, return the home directory.
-	if len(parts) == 0 {
-		return homeDir, nil
-	}
-
-	//// Otherwise, ensure the tilde is replaced with the home directory
-	////in all parts and return the joined path.
-	//for _, part := range parts {
-	//	strings.Replace(part, "~", homeDir, 1)
-	//}
-	return path.Join(append([]string{homeDir}, parts...)...), nil
+// IsGitURL checks if the input is a valid git URL.
+func IsGitURL(input string) bool {
+	return strings.HasPrefix(input, "git@") || strings.HasPrefix(input, "https://")
 }

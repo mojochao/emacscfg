@@ -3,43 +3,65 @@ package state
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/mojochao/emacsctl/config"
+	"github.com/mojochao/emacsctl/errors"
 	"github.com/mojochao/emacsctl/util"
 )
 
-// CommandLine represents an emacs command line.
-type CommandLine = string
+// EmacsCommand represents an emacs command.
+type EmacsCommand struct {
+	BinPath     string   `json:"bin_path"`
+	BinArgs     []string `json:"bin_args"`
+	Description string   `json:"description"`
+}
 
-// ConfigDir represents a path to an emacs configuration directory.
-type ConfigDir = string
+func (c *EmacsCommand) CommandLine(initDir string) []string {
+	args := make([]string, 0, len(c.BinArgs)+2)
+	args = append(args, c.BinPath)
+	args = append(args, c.BinArgs...)
+	args = append(args, "--init-directory", initDir)
+	return args
+}
 
-// Environment represents an emacs command and config directory environment.
+// EmacsConfig represents an emacs configuration.
+type EmacsConfig struct {
+	InitDir     string `json:"init_dir"`
+	Description string `json:"description"`
+}
+
+// Environment represents an emacs environment consisting of a EmacsCommand and EmacsConfig.
 type Environment struct {
-	CommandName string `json:"command_name"` // name of the command to use
-	ConfigName  string `json:"config_name"`  // name of the config to use
-	Description string `json:"description"`  // description of the config
+	CommandName string `json:"command_name"`
+	ConfigName  string `json:"config_name"`
+	Description string `json:"description"`
 }
 
 // State represents the state of the application.
 type State struct {
-	CommandLines map[string]CommandLine `json:"command_lines"`
-	ConfigDirs   map[string]ConfigDir   `json:"config_dirs"`
-	Environments map[string]Environment `json:"environments"`
-	Context      string                 `json:"context"`
+	Commands     map[string]EmacsCommand `json:"commands"`
+	Configs      map[string]EmacsConfig  `json:"configs"`
+	Environments map[string]Environment  `json:"environments"`
+	Context      string                  `json:"context"`
 }
 
 // New returns a new, empty application state.
 func New() *State {
 	return &State{
-		CommandLines: map[string]CommandLine{
-			"default": util.DefaultEmacsCommandLine,
+		Commands: map[string]EmacsCommand{
+			"default": {
+				BinPath:     config.DefaultEmacsCommandLine,
+				BinArgs:     nil,
+				Description: "Default emacs application",
+			},
 		},
-		ConfigDirs: map[string]ConfigDir{
-			"default": util.DefaultEmacsConfigDir,
+		Configs: map[string]EmacsConfig{
+			"default": {
+				InitDir:     config.DefaultEmacsConfigDir,
+				Description: "Default emacs configuration",
+			},
 		},
 		Environments: map[string]Environment{
 			"default": {
@@ -54,72 +76,63 @@ func New() *State {
 
 // CommandExists checks if a command line exists in the state.
 func (s *State) CommandExists(name string) bool {
-	_, exists := s.CommandLines[name]
+	_, exists := s.Commands[name]
 	return exists
 }
 
-// AddCommandLine adds a command line to the state.
-func (s *State) AddCommandLine(name string, commandLine []string) error {
-	// Ensure the named command line does not already exist.
-	if _, exists := s.CommandLines[name]; exists {
-		return fmt.Errorf("command %s exists", name)
+// AddCommand adds a command to the state.
+func (s *State) AddCommand(name string, commandLine []string, description string) error {
+	if _, exists := s.Commands[name]; exists {
+		return errors.CommandExistsError{Name: name}
 	}
 
-	// Add the command line to the state.
-	s.CommandLines[name] = strings.Join(commandLine, " ")
+	s.Commands[name] = EmacsCommand{
+		BinPath:     commandLine[0],
+		BinArgs:     commandLine[1:],
+		Description: description,
+	}
 	return nil
 }
 
-// RemoveCommandLine removes a command line from the state.
-func (s *State) RemoveCommandLine(name string) error {
-	// Ensure the command line exists.
-	if _, exists := s.ConfigDirs[name]; !exists {
-		return fmt.Errorf("command %s not found", name)
+// RemoveCommand removes a command from the state.
+func (s *State) RemoveCommand(name string) error {
+	if _, exists := s.Configs[name]; !exists {
+		return errors.CommandNotFoundError{Name: name}
 	}
 
-	// Remove the configuration from the state.
-	delete(s.ConfigDirs, name)
-
-	// Reset the context to nothing.
+	delete(s.Configs, name)
 	s.Context = ""
-
 	return nil
 }
 
-// ConfigDirExists checks if a configuration directory exists in the state.
-func (s *State) ConfigDirExists(name string) bool {
-	_, exists := s.ConfigDirs[name]
+// ConfigExists checks if a configuration exists in the state.
+func (s *State) ConfigExists(name string) bool {
+	_, exists := s.Configs[name]
 	return exists
 }
 
-// AddConfigDir adds a configuration directory to the state.
-func (s *State) AddConfigDir(name, path string) error {
-	// Ensure the configuration does not already exist.
-	if _, exists := s.ConfigDirs[name]; exists {
-		return fmt.Errorf("configuration %s exists", name)
+// AddConfig adds a configuration to the state.
+func (s *State) AddConfig(name, path, description string) error {
+	if _, exists := s.Configs[name]; exists {
+		return errors.ConfigExistsError{Name: name}
 	}
 
-	// Add the configuration to the state.
-	s.ConfigDirs[name] = path
-
-	//// Set the context to the new configuration.
-	//s.Context = name
+	s.Configs[name] = EmacsConfig{
+		InitDir:     path,
+		Description: description,
+	}
+	s.Context = name
 	return nil
 }
 
-// RemoveConfigDir removes a configuration directory rom the state.
-func (s *State) RemoveConfigDir(name string) error {
-	// Ensure the configuration exists.
-	if _, exists := s.ConfigDirs[name]; !exists {
-		return fmt.Errorf("configuration %s not found", name)
+// RemoveConfig removes a configuration rom the state.
+func (s *State) RemoveConfig(name string) error {
+	if _, exists := s.Configs[name]; !exists {
+		return errors.ConfigNotFoundError{Name: name}
 	}
 
-	// Remove the configuration from the state.
-	delete(s.ConfigDirs, name)
-
-	// Reset the context to nothing.
+	delete(s.Configs, name)
 	s.Context = ""
-
 	return nil
 }
 
@@ -131,73 +144,57 @@ func (s *State) EnvironmentExists(name string) bool {
 
 // AddEnvironment adds an emacs environment to the state.
 func (s *State) AddEnvironment(name, command, config, description string) error {
-	// Ensure the environment does not already exist.
 	if _, exists := s.Environments[name]; exists {
-		return fmt.Errorf("environment %s exists", name)
+		return errors.EnvironmentExistsError{Name: name}
+	}
+	if _, exists := s.Commands[name]; !exists {
+		return errors.CommandNotFoundError{Name: name}
+	}
+	if _, exists := s.Configs[name]; !exists {
+		return errors.ConfigNotFoundError{Name: name}
 	}
 
-	// Ensure the command exists.
-	if _, exists := s.CommandLines[name]; !exists {
-		return fmt.Errorf("command %s not found", name)
-	}
-
-	// Ensure the configuration exists.
-	if _, exists := s.ConfigDirs[name]; !exists {
-		return fmt.Errorf("configuration %s not found", name)
-	}
-
-	// Add the configuration to the state.
 	s.Environments[name] = Environment{
 		CommandName: command,
 		ConfigName:  config,
 		Description: description,
 	}
-
-	// Set the context to the new configuration.
 	s.Context = name
 	return nil
 }
 
 // RemoveEnvironment removes an emacs environment from the state.
 func (s *State) RemoveEnvironment(name string) error {
-	// Ensure the environment exists.
 	if _, exists := s.Environments[name]; !exists {
-		return fmt.Errorf("environment %s not found", name)
+		return errors.EnvironmentNotFoundError{Name: name}
 	}
 
-	// Remove the environment from the state.
 	delete(s.Environments, name)
-
-	// Reset the context to nothing.
 	s.Context = ""
-
 	return nil
 }
 
-// Load loads the state from the state file.
+// Load loads the application state from the state file.
 func Load(path string) (*State, error) {
-	// If the state file does not exist, return a new state.
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return New(), nil
 	}
 
-	// Otherwise, open the state file and decode the state.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
-	var config State
-	if err := json.NewDecoder(file).Decode(&config); err != nil {
+	var state State
+	if err := json.NewDecoder(file).Decode(&state); err != nil {
 		return nil, err
 	}
-	return &config, nil
+	return &state, nil
 }
 
-// Save saves the state to the state file.
+// Save saves the application state to the state file.
 func Save(state *State, path string) error {
-	// Ensure the containing directory exists and create the state file.
 	dir := filepath.Dir(path)
 	if err := util.EnsureDir(dir); err != nil {
 		return err
@@ -207,7 +204,7 @@ func Save(state *State, path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
